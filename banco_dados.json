@@ -1,0 +1,15 @@
+{
+    "22253400977": {
+        "nome": "Cauã da Cunha Lira",
+        "data_nascimento": "2004-01-02",
+        "endereco": {
+            "cep": "55594056",
+            "bairro": "Camela",
+            "cidade": "Ipojuca",
+            "estado": "Pernambuco",
+            "logradouro": "Casa",
+            "numero_casa": "133"
+        },
+        "contas": []
+    }
+}
