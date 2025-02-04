@@ -52,3 +52,5 @@ Este projeto está sob a licença MIT - sinta-se livre para usar e modificar! �
 
 Vamos construir juntos algo incrível! 💻✨
 
+![Meu Certificado](Y32B28ZK_page-0001.jpg)
+
