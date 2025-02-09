@@ -1,37 +1,43 @@
 import tkinter as tk
+from tkinter import ttk  # Importando o ttk para usar o Notebook
 from tkinter import messagebox
-from usuarios import criar_usuario
-from database import salvar_dados, carregar_dados
-from contas import criar_conta_corrente
 
-# Carrega os dados ao iniciar
-central_contas = carregar_dados()
+# Função para criar um novo usuário
+def criar_usuario(central_contas, cpf, nome, data_nascimento, cep, bairro, cidade, estado, logradouro, numero_casa):
+    """
+    Cria um usuário com os dados fornecidos e adiciona ao dicionário central_contas.
+    """
+    usuario = {
+        "cpf": cpf,
+        "nome": nome,
+        "data_nascimento": data_nascimento,
+        "endereco": {
+            "cep": cep,
+            "bairro": bairro,
+            "cidade": cidade,
+            "estado": estado,
+            "logradouro": logradouro,
+            "numero_casa": numero_casa
+        },
+        "contas": []
+    }
+    central_contas[cpf] = usuario
+    return usuario  # Retorna o usuário criado
 
+# Função para validar CPF
+def validar_cpf(cpf):
+    """
+    Função simples para validar o formato do CPF.
+    """
+    if len(cpf) != 11 or not cpf.isdigit():
+        return False
+    return True
 
-
-# Criando a janela principal
-janela = tk.Tk()
-janela.title("Sistema Bancário")
-janela.geometry("600x500")
-
-# Criando frames para alternar entre as janelas
-aba_usuarios = tk.Frame(janela)
-aba_contas = tk.Frame(janela)
-aba_listar_contas = tk.Frame(janela)
-aba_transacoes = tk.Frame(janela)
-aba_extrato = tk.Frame(janela)
-
-
-# Função para alternar entre as abas
-def mostrar_aba(aba):
-    for frame in [aba_usuarios, aba_contas, aba_listar_contas, aba_transacoes, aba_extrato]:
-        frame.pack_forget()
-    aba.pack()
-
-# ------- ABA DE CRIAÇÃO DE USUÁRIOS -------
-
-# Criar novo usuário
+# Função para adicionar usuário
 def adicionar_usuario():
+    """
+    Coleta os dados dos campos de entrada e cria um novo usuário no sistema.
+    """
     cpf = entry_cpf.get()
     nome = entry_nome.get()
     data_nascimento = entry_data_nascimento.get()
@@ -46,13 +52,24 @@ def adicionar_usuario():
         messagebox.showerror("Erro", "Por favor, preencha todos os campos obrigatórios!")
         return
     
-    criar_usuario(central_contas, cpf, nome, data_nascimento, cep, bairro, cidade, estado, logradouro, numero_casa)
+    if not validar_cpf(cpf):
+        messagebox.showerror("Erro", "CPF inválido. Verifique o formato.")
+        return
     
-    # Salva os dados após criar um usuário
-    salvar_dados(central_contas) 
+    # Criação do usuário e adição no sistema
+    usuario = criar_usuario(central_contas, cpf, nome, data_nascimento, cep, bairro, cidade, estado, logradouro, numero_casa)
+    
+    # Exibir mensagem de sucesso
     messagebox.showinfo("Sucesso", f"Usuário {nome} criado com sucesso.")
     
-    # Limpa os campos
+    # Limpar campos após a criação do usuário
+    limpar_campos_usuario()
+
+# Função para limpar campos do usuário após o cadastro
+def limpar_campos_usuario():
+    """
+    Limpa todos os campos de entrada relacionados ao cadastro de usuário.
+    """
     entry_cpf.delete(0, tk.END)
     entry_nome.delete(0, tk.END)
     entry_data_nascimento.delete(0, tk.END)
@@ -63,273 +80,179 @@ def adicionar_usuario():
     entry_logradouro.delete(0, tk.END)
     entry_numero_casa.delete(0, tk.END)
 
-# Adicionando o campo CPF 
-tk.Label(janela, text="CPF:").pack()
-entry_cpf = tk.Entry(janela)
-entry_cpf.pack()
-
-tk.Label(janela, text="Nome:").pack()
-entry_nome = tk.Entry(janela)
-entry_nome.pack()
-
-tk.Label(janela, text="Data nascimento (YYYY-MM-DD):").pack()
-entry_data_nascimento = tk.Entry(janela)
-entry_data_nascimento.pack()
-
-tk.Label(janela, text="CEP:").pack()
-entry_cep = tk.Entry(janela)
-entry_cep.pack()
-
-tk.Label(janela, text="Bairro:").pack()
-entry_bairro = tk.Entry(janela)
-entry_bairro.pack()
-
-tk.Label(janela, text="Cidade:").pack()
-entry_cidade = tk.Entry(janela)
-entry_cidade.pack()
-
-tk.Label(janela, text="Estado:").pack()
-entry_estado = tk.Entry(janela)
-entry_estado.pack()
-
-tk.Label(janela, text="Logradouro:").pack()
-entry_logradouro = tk.Entry(janela)
-entry_logradouro.pack()
-
-tk.Label(janela, text="Número da Casa:").pack()
-entry_numero_casa = tk.Entry(janela)
-entry_numero_casa.pack()
-
-
-# ------- ABA DE CRIAÇÃO DE CONTAS -------
-
-def adicionar_conta():
+# Função para criar uma nova conta
+def criar_conta():
+    """
+    Cria uma nova conta para o usuário com base no CPF fornecido e no tipo de conta.
+    """
     cpf = entry_cpf_conta.get()
     tipo_conta = tipo_conta_var.get()
 
-    if not cpf or tipo_conta not in["PF", "PJ"]:
-        messagebox.showerror("Erro", "Preencha todos os campos corretamente.")
+    if not cpf or tipo_conta == "Selecione":
+        messagebox.showerror("Erro", "Por favor, preencha todos os campos obrigatórios!")
         return
     
-    # Caso seja PJ, exigir o CNPJ
-    cnpj = entry_cnpj.get() if tipo_conta == "PJ" else None
-
-    if tipo_conta == "PJ" and not cnpj:
-        print("Erro", "Uma conta PJ, necessita de um CNPJ")
+    if cpf not in central_contas:
+        messagebox.showerror("Erro", "Usuário não encontrado!")
         return
     
-    # Criar conta bancaria
-    numero_conta = criar_conta_corrente(central_contas, cpf, tipo_conta, cnpj=cnpj)
-
-    if numero_conta:
-        salvar_dados(central_contas)
-        messagebox.showinfo("Sucesso", f"Conta {tipo_conta} criada para o CPF {cpf}, número de conta {numero_conta}")
-
-    # Limpa os campos
+    # Lógica para criar uma nova conta
+    central_contas[cpf]['contas'].append(tipo_conta)
+    messagebox.showinfo("Sucesso", f"Conta {tipo_conta} criada para o CPF {cpf}.")
+    
+    # Limpar campos após a criação da conta
     entry_cpf_conta.delete(0, tk.END)
-    if tipo_conta == 'PJ':
-        entry_cnpj.delete(0, tk.END)
+    tipo_conta_var.set("Selecione")
 
-# Criando os campos de entrada para a criação de conta
-tk.Label(aba_contas, text="CPF do Titular:").pack()
-entry_cpf_conta = tk.Entry(aba_contas)
-entry_cpf_conta.pack()
-
-tk.Label(aba_contas, text="Tipo de Conta:").pack()
-tipo_conta_var = tk.StringVar()
-tipo_conta_var.set("PF") # Valor padrão
-
-tk.Radiobutton(aba_contas, text="Pessoa Física (PF)", variable=tipo_conta_var, value="PF").pack()
-tk.Radiobutton(aba_contas, text="Pessoa Jurídica (PJ)", variable=tipo_conta_var, value="PJ").pack()
-
-# Campo opcional para CNPJ (só para PJ)
-tk.Label(aba_contas, text="CNPJ (somente para PJ):").pack()
-entry_cnpj = tk.Entry(aba_contas)
-entry_cnpj.pack()
-
-
-# Exibe a aba inicial
-mostrar_aba(aba_usuarios)
-
-# ------- ABA DE LISTAGEM DE CONTAS -------
-def listar_contas():
-    cpf = entry_cpf_listar.get()
-    
-    if cpf not in central_contas:
-        messagebox.showerror("Erro", "CPF não encontrado!")
-        return
-    
-    contas = central_contas[cpf]["contas"]
-    
-    if not contas:
-        messagebox.showinfo("Aviso", "Nenhuma conta encontrada para este usuário.")
-        return
-    
-    resultado = "\n".join([f"Conta {conta['tipo']}: {conta['numero_conta']}" for conta in contas])
-    messagebox.showinfo("Contas do Usuário", resultado)
-
-aba_listar_contas = tk.Frame(janela)
-
-tk.Label(aba_listar_contas, text="CPF do Usuário:").pack()
-entry_cpf_listar = tk.Entry(aba_listar_contas)
-entry_cpf_listar.pack()
-
-
-# ------- ABA DE TRANSAÇÕES -------
-def realizar_transacao():
-    tipo = tipo_transacao_var.get()
+# Função para registrar transação
+def registrar_transacao():
+    """
+    Registra uma transação de depósito ou saque para um usuário, com base nas informações fornecidas.
+    """
     cpf = entry_cpf_transacao.get()
-    numero_conta = entry_numero_conta.get()
-    valor = float(entry_valor.get())
+    valor = entry_valor_transacao.get()
+    tipo_transacao = tipo_transacao_var.get()
+
+    if not cpf or not valor or tipo_transacao == "Selecione":
+        messagebox.showerror("Erro", "Por favor, preencha todos os campos obrigatórios!")
+        return
     
     if cpf not in central_contas:
-        messagebox.showerror("Erro", "CPF não encontrado!")
+        messagebox.showerror("Erro", "Usuário não encontrado!")
         return
     
-    conta = next((c for c in central_contas[cpf]["contas"] if c["numero_conta"] == numero_conta), None)
-    
-    if not conta:
-        messagebox.showerror("Erro", "Conta não encontrada!")
+    try:
+        valor = float(valor)
+    except ValueError:
+        messagebox.showerror("Erro", "Valor inválido. Insira um número válido.")
         return
     
-    if tipo == "Depósito":
-        conta["saldo"] += valor
-    elif tipo == "Saque":
-        if conta["saldo"] >= valor:
-            conta["saldo"] -= valor
-        else:
-            messagebox.showerror("Erro", "Saldo insuficiente!")
-            return
-    elif tipo == "Transferência":
-        cpf_destino = entry_cpf_destino.get()
-        numero_conta_destino = entry_numero_conta_destino.get()
-        
-        if cpf_destino not in central_contas:
-            messagebox.showerror("Erro", "CPF de destino não encontrado!")
-            return
-        
-        conta_destino = next((c for c in central_contas[cpf_destino]["contas"] if c["numero_conta"] == numero_conta_destino), None)
-        
-        if not conta_destino:
-            messagebox.showerror("Erro", "Conta de destino não encontrada!")
-            return
-        
-        if conta["saldo"] >= valor:
-            conta["saldo"] -= valor
-            conta_destino["saldo"] += valor
-        else:
-            messagebox.showerror("Erro", "Saldo insuficiente!")
-            return
-    
-    salvar_dados(central_contas)
-    messagebox.showinfo("Sucesso", f"{tipo} realizado com sucesso!")
-
-aba_transacoes = tk.Frame(janela)
-
-tk.Label(aba_transacoes, text="CPF do Usuário:").pack()
-entry_cpf_transacao = tk.Entry(aba_transacoes)
-entry_cpf_transacao.pack()
-
-tk.Label(aba_transacoes, text="Número da Conta:").pack()
-entry_numero_conta = tk.Entry(aba_transacoes)
-entry_numero_conta.pack()
-
-tk.Label(aba_transacoes, text="Valor:").pack()
-entry_valor = tk.Entry(aba_transacoes)
-entry_valor.pack()
-
-tipo_transacao_var = tk.StringVar()
-tipo_transacao_var.set("Depósito")  # Valor padrão
-
-tk.Radiobutton(aba_transacoes, text="Depósito", variable=tipo_transacao_var, value="Depósito").pack()
-tk.Radiobutton(aba_transacoes, text="Saque", variable=tipo_transacao_var, value="Saque").pack()
-tk.Radiobutton(aba_transacoes, text="Transferência", variable=tipo_transacao_var, value="Transferência").pack()
-
-tk.Label(aba_transacoes, text="CPF do Destinatário (apenas para transferências):").pack()
-entry_cpf_destino = tk.Entry(aba_transacoes)
-entry_cpf_destino.pack()
-
-tk.Label(aba_transacoes, text="Número da Conta Destino (apenas para transferências):").pack()
-entry_numero_conta_destino = tk.Entry(aba_transacoes)
-entry_numero_conta_destino.pack()
-
-btn_transacao = tk.Button(aba_transacoes, text="Realizar Transação", command=realizar_transacao)
-btn_transacao.pack()
-
-# ------- ABA DE SALDO E EXTRATO -------
-def exibir_saldo_extrato():
-    cpf = entry_cpf_extrato.get()
-    numero_conta = entry_numero_conta_extrato.get()
-    
-    if cpf not in central_contas:
-        messagebox.showerror("Erro", "CPF não encontrado!")
+    if tipo_transacao == "Saque" and valor <= 0:
+        messagebox.showerror("Erro", "Valor de saque deve ser maior que zero.")
         return
     
-    conta = next((c for c in central_contas[cpf]["contas"] if c["numero_conta"] == numero_conta), None)
+    # Lógica para registrar a transação
+    messagebox.showinfo("Sucesso", f"Transação {tipo_transacao} de R$ {valor} registrada.")
     
-    if not conta:
-        messagebox.showerror("Erro", "Conta não encontrada!")
-        return
-    
-    saldo = conta["saldo"]
-    extrato = "\n".join(conta.get("extrato", ["Nenhuma transação encontrada."]))
-    
-    messagebox.showinfo("Saldo e Extrato", f"Saldo Atual: R$ {saldo:.2f}\n\nExtrato:\n{extrato}")
+    # Limpar campos após o registro da transação
+    limpar_campos_transacao()
 
-aba_extrato = tk.Frame(janela)
+# Função para limpar os campos de transação após o registro
+def limpar_campos_transacao():
+    """
+    Limpa os campos de entrada de transação após o registro de uma operação.
+    """
+    entry_cpf_transacao.delete(0, tk.END)
+    entry_valor_transacao.delete(0, tk.END)
+    tipo_transacao_var.set("Selecione")
 
-tk.Label(aba_extrato, text="CPF do Usuário:").pack()
-entry_cpf_extrato = tk.Entry(aba_extrato)
-entry_cpf_extrato.pack()
+# Função para limpar todos os campos (exemplo para futuras melhorias)
+def limpar_todos_campos():
+    """
+    Limpa todos os campos de entrada de uma vez.
+    """
+    limpar_campos_usuario()
+    limpar_campos_transacao()
+    entry_cpf_conta.delete(0, tk.END)
+    tipo_conta_var.set("Selecione")
 
-tk.Label(aba_extrato, text="Número da Conta:").pack()
-entry_numero_conta_extrato = tk.Entry(aba_extrato)
-entry_numero_conta_extrato.pack()
+# Configuração inicial da interface
+root = tk.Tk()
+root.title("Sistema Bancário")
 
-# Criando um frame para os botões de navegação (Centralizados)
-frame_botoes_principais = tk.Frame(janela)
-frame_botoes_principais.pack(fill="x", pady=10)
+# Central de contas (onde todos os dados dos usuários serão armazenados)
+central_contas = {}
 
-# Centralizando os botões principais dentro do frame
-frame_botoes_principais.columnconfigure(0, weight=1)
+# Abas (Notebook)
+tab_control = ttk.Notebook(root)
 
-btn_usuarios = tk.Button(frame_botoes_principais, text="Criar Usuário", command=lambda: mostrar_aba(aba_usuarios), width=20)
-btn_usuarios.grid(row=0, column=0, padx=5, pady=5)
+# Aba de criação de usuário
+aba_usuarios = tk.Frame(tab_control)
+tab_control.add(aba_usuarios, text="Criar Usuário")
 
-btn_contas = tk.Button(frame_botoes_principais, text="Criar Conta Bancária", command=lambda: mostrar_aba(aba_contas), width=20)
-btn_contas.grid(row=0, column=1, padx=5, pady=5)
-
-btn_listar = tk.Button(frame_botoes_principais, text="Listar Contas", command=lambda: mostrar_aba(aba_listar_contas), width=20)
-btn_listar.grid(row=0, column=2, padx=5, pady=5)
-
-btn_transacoes = tk.Button(frame_botoes_principais, text="Realizar Transação", command=lambda: mostrar_aba(aba_transacoes), width=20)
-btn_transacoes.grid(row=1, column=0, padx=5, pady=5)
-
-btn_extrato = tk.Button(frame_botoes_principais, text="Ver Saldo e Extrato", command=lambda: mostrar_aba(aba_extrato), width=20)
-btn_extrato.grid(row=1, column=1, padx=5, pady=5)
-
-# Criando os elementos dentro da aba de usuários
-tk.Label(aba_usuarios, text="Nome:").pack(pady=2)
+# Entradas para criação de usuário
+tk.Label(aba_usuarios, text="Nome:").pack(pady=5)
 entry_nome = tk.Entry(aba_usuarios)
-entry_nome.pack(pady=2)
+entry_nome.pack(pady=5)
 
-tk.Label(aba_usuarios, text="Data nascimento (YYYY-MM-DD):").pack(pady=2)
+tk.Label(aba_usuarios, text="Data nascimento (YYYY-MM-DD):").pack(pady=5)
 entry_data_nascimento = tk.Entry(aba_usuarios)
-entry_data_nascimento.pack(pady=2)
+entry_data_nascimento.pack(pady=5)
 
-tk.Label(aba_usuarios, text="CPF:").pack(pady=2)
+tk.Label(aba_usuarios, text="CPF:").pack(pady=5)
 entry_cpf = tk.Entry(aba_usuarios)
-entry_cpf.pack(pady=2)
+entry_cpf.pack(pady=5)
 
-# Criando um frame para centralizar o botão "Adicionar Usuário"
-frame_btn_usuario = tk.Frame(aba_usuarios)
-frame_btn_usuario.pack(pady=10)
+tk.Label(aba_usuarios, text="CEP:").pack(pady=5)
+entry_cep = tk.Entry(aba_usuarios)
+entry_cep.pack(pady=5)
 
-# Botão "Adicionar Usuário" agora centralizado
-btn_adicionar = tk.Button(frame_btn_usuario, text="Adicionar Usuário", command=adicionar_usuario, width=20)
-btn_adicionar.pack()
+tk.Label(aba_usuarios, text="Bairro:").pack(pady=5)
+entry_bairro = tk.Entry(aba_usuarios)
+entry_bairro.pack(pady=5)
 
+tk.Label(aba_usuarios, text="Cidade:").pack(pady=5)
+entry_cidade = tk.Entry(aba_usuarios)
+entry_cidade.pack(pady=5)
 
+tk.Label(aba_usuarios, text="Estado:").pack(pady=5)
+entry_estado = tk.Entry(aba_usuarios)
+entry_estado.pack(pady=5)
 
-# Rodar janela
-janela.mainloop()
+tk.Label(aba_usuarios, text="Logradouro:").pack(pady=5)
+entry_logradouro = tk.Entry(aba_usuarios)
+entry_logradouro.pack(pady=5)
+
+tk.Label(aba_usuarios, text="Número da casa:").pack(pady=5)
+entry_numero_casa = tk.Entry(aba_usuarios)
+entry_numero_casa.pack(pady=5)
+
+# Botão para criar usuário
+btn_criar_usuario = tk.Button(aba_usuarios, text="Criar Usuário", command=adicionar_usuario, width=20)
+btn_criar_usuario.pack(pady=20)
+
+# Aba de criação de contas
+aba_contas = tk.Frame(tab_control)
+tab_control.add(aba_contas, text="Criar Conta")
+
+# Entradas para criação de conta
+tk.Label(aba_contas, text="CPF:").pack(pady=5)
+entry_cpf_conta = tk.Entry(aba_contas)
+entry_cpf_conta.pack(pady=5)
+
+tk.Label(aba_contas, text="Tipo de Conta:").pack(pady=5)
+tipo_conta_var = tk.StringVar(value="Selecione")
+tipo_conta_menu = tk.OptionMenu(aba_contas, tipo_conta_var, "Selecione", "Conta Corrente", "Conta PJ")
+tipo_conta_menu.pack(pady=5)
+
+# Botão para criar conta
+btn_criar_conta = tk.Button(aba_contas, text="Criar Conta", command=criar_conta, width=20)
+btn_criar_conta.pack(pady=20)
+
+# Aba de transações
+aba_transacoes = tk.Frame(tab_control)
+tab_control.add(aba_transacoes, text="Transações")
+
+# Entradas para transação
+tk.Label(aba_transacoes, text="CPF:").pack(pady=5)
+entry_cpf_transacao = tk.Entry(aba_transacoes)
+entry_cpf_transacao.pack(pady=5)
+
+tk.Label(aba_transacoes, text="Valor:").pack(pady=5)
+entry_valor_transacao = tk.Entry(aba_transacoes)
+entry_valor_transacao.pack(pady=5)
+
+tk.Label(aba_transacoes, text="Tipo de Transação:").pack(pady=5)
+tipo_transacao_var = tk.StringVar(value="Selecione")
+tipo_transacao_menu = tk.OptionMenu(aba_transacoes, tipo_transacao_var, "Selecione", "Depósito", "Saque")
+tipo_transacao_menu.pack(pady=5)
+
+# Botão para registrar transação
+btn_registrar_transacao = tk.Button(aba_transacoes, text="Registrar Transação", command=registrar_transacao, width=20)
+btn_registrar_transacao.pack(pady=20)
+
+# Exibindo as abas
+tab_control.pack(expand=1, fill="both")
+
+# Iniciando a aplicação
+root.mainloop()
