@@ -1,258 +1,304 @@
+#!/usr/bin/env python3
+"""
+Sistema Bancário
+----------------
+Este sistema permite o cadastro de usuários, criação de contas, depósito e saque,
+persistindo os dados em um arquivo JSON. Todas as mensagens e variáveis estão em português.
+"""
+
 import tkinter as tk
-from tkinter import ttk  # Importando o ttk para usar o Notebook
-from tkinter import messagebox
+from tkinter import messagebox, ttk
+from datetime import datetime
+from usuarios import criar_usuario  # Função para criar o usuário
+from endereco import criar_endereco  # Função para criar o endereço
+from database import salvar_dados, carregar_dados  # Funções de salvar e carregar dados
+import os
 
-# Função para criar um novo usuário
-def criar_usuario(central_contas, cpf, nome, data_nascimento, cep, bairro, cidade, estado, logradouro, numero_casa):
-    """
-    Cria um usuário com os dados fornecidos e adiciona ao dicionário central_contas.
-    """
-    usuario = {
-        "cpf": cpf,
-        "nome": nome,
-        "data_nascimento": data_nascimento,
-        "endereco": {
-            "cep": cep,
-            "bairro": bairro,
-            "cidade": cidade,
-            "estado": estado,
-            "logradouro": logradouro,
-            "numero_casa": numero_casa
-        },
-        "contas": []
-    }
-    central_contas[cpf] = usuario
-    return usuario  # Retorna o usuário criado
-
-# Função para validar CPF
-def validar_cpf(cpf):
-    """
-    Função simples para validar o formato do CPF.
-    """
-    if len(cpf) != 11 or not cpf.isdigit():
-        return False
-    return True
-
-# Função para adicionar usuário
-def adicionar_usuario():
-    """
-    Coleta os dados dos campos de entrada e cria um novo usuário no sistema.
-    """
-    cpf = entry_cpf.get()
-    nome = entry_nome.get()
-    data_nascimento = entry_data_nascimento.get()
-    cep = entry_cep.get()
-    bairro = entry_bairro.get()  
-    cidade = entry_cidade.get()
-    estado = entry_estado.get()
-    logradouro = entry_logradouro.get()
-    numero_casa = entry_numero_casa.get()
-
-    if not cpf or not nome or not data_nascimento:
-        messagebox.showerror("Erro", "Por favor, preencha todos os campos obrigatórios!")
-        return
+class SistemaBancario:
+    def __init__(self, master):
+        self.master = master
+        self.master.title("Sistema Bancário")
+        self.central_contas = carregar_dados()  # Carrega os dados do arquivo JSON
+        
+        # Cria as abas usando Notebook
+        self.notebook = ttk.Notebook(self.master)
+        self.notebook.pack(expand=1, fill="both")
+        
+        # Criação das abas
+        self.criar_aba_cadastro()
+        self.criar_aba_deposito()
+        self.criar_aba_saque()
     
-    if not validar_cpf(cpf):
-        messagebox.showerror("Erro", "CPF inválido. Verifique o formato.")
-        return
+    # --- Métodos de lógica do sistema ---
     
-    # Criação do usuário e adição no sistema
-    usuario = criar_usuario(central_contas, cpf, nome, data_nascimento, cep, bairro, cidade, estado, logradouro, numero_casa)
+    def cadastrar_usuario(self):
+        """
+        Método chamado quando o usuário clica no botão de cadastro.
+        Lê os campos, valida os dados, chama a função de criar usuário (do módulo usuarios)
+        e atualiza os dados persistidos.
+        """
+        try:
+            cpf = self.entry_cpf.get().strip()
+            nome = self.entry_nome.get().strip()
+            data_nascimento = self.entry_data_nascimento.get().strip()
+            cep = self.entry_cep.get().strip()
+            bairro = self.entry_bairro.get().strip()
+            cidade = self.entry_cidade.get().strip()
+            estado = self.entry_estado.get().strip()
+            logradouro = self.entry_logradouro.get().strip()
+            numero_casa = self.entry_numero_casa.get().strip()
+            
+            # Verifica campos obrigatórios
+            if not cpf or not nome or not data_nascimento:
+                raise ValueError("Preencha todos os campos obrigatórios.")
+            
+            # Verifica se o CPF já existe
+            if cpf in self.central_contas:
+                raise ValueError(f"O CPF {cpf} já está cadastrado.")
+            
+            # Chama a função para criar o usuário (do módulo usuarios)
+            # Observe que a função 'criar_usuario' já usa 'criar_endereco' internamente,
+            # conforme seu módulo.
+            usuario = criar_usuario(self.central_contas, cpf, nome, data_nascimento, cep, bairro, cidade, estado, logradouro, numero_casa)
+            
+            if usuario:
+                messagebox.showinfo("Sucesso", f"Usuário {nome} criado com sucesso!")
+                salvar_dados(self.central_contas)
+                self.central_contas = carregar_dados()  # Atualiza os dados
+                self.limpar_campos_cadastro()
+            else:
+                raise Exception("Erro ao criar o usuário.")
+        except ValueError as ve:
+            messagebox.showerror("Erro", str(ve))
+        except Exception as e:
+            messagebox.showerror("Erro", str(e))
     
-    # Exibir mensagem de sucesso
-    messagebox.showinfo("Sucesso", f"Usuário {nome} criado com sucesso.")
+    def efetuar_deposito(self):
+        """
+        Método para realizar depósito.
+        Lê os campos da aba de depósito, valida os dados e atualiza o saldo e extrato.
+        """
+        try:
+            cpf = self.entry_cpf_deposito.get().strip()
+            num_conta = self.entry_numero_conta_deposito.get().strip()
+            valor_deposito = float(self.entry_valor_deposito.get().strip())
+            
+            if cpf not in self.central_contas:
+                raise ValueError("CPF não encontrado.")
+            
+            conta = None
+            for c in self.central_contas[cpf]["contas"]:
+                if c["numero_conta"] == int(num_conta):
+                    conta = c
+                    break
+            
+            if not conta:
+                raise ValueError("Número da conta não encontrado.")
+            
+            if valor_deposito <= 0:
+                raise ValueError("Valor de depósito inválido.")
+            
+            conta["saldo"] += valor_deposito
+            conta["extrato"].append({
+                "data_hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "valor": valor_deposito
+            })
+            
+            messagebox.showinfo("Sucesso", f"Depósito de R$ {valor_deposito:.2f} realizado com sucesso!")
+            salvar_dados(self.central_contas)
+            self.central_contas = carregar_dados()
+            self.limpar_campos_deposito()
+        except ValueError as ve:
+            messagebox.showerror("Erro", str(ve))
+        except Exception as e:
+            messagebox.showerror("Erro", str(e))
     
-    # Limpar campos após a criação do usuário
-    limpar_campos_usuario()
-
-# Função para limpar campos do usuário após o cadastro
-def limpar_campos_usuario():
-    """
-    Limpa todos os campos de entrada relacionados ao cadastro de usuário.
-    """
-    entry_cpf.delete(0, tk.END)
-    entry_nome.delete(0, tk.END)
-    entry_data_nascimento.delete(0, tk.END)
-    entry_cep.delete(0, tk.END)
-    entry_bairro.delete(0, tk.END)
-    entry_cidade.delete(0, tk.END)
-    entry_estado.delete(0, tk.END)
-    entry_logradouro.delete(0, tk.END)
-    entry_numero_casa.delete(0, tk.END)
-
-# Função para criar uma nova conta
-def criar_conta():
-    """
-    Cria uma nova conta para o usuário com base no CPF fornecido e no tipo de conta.
-    """
-    cpf = entry_cpf_conta.get()
-    tipo_conta = tipo_conta_var.get()
-
-    if not cpf or tipo_conta == "Selecione":
-        messagebox.showerror("Erro", "Por favor, preencha todos os campos obrigatórios!")
-        return
+    def efetuar_saque(self):
+        """
+        Método para realizar saque.
+        Lê os campos da aba de saque, valida os dados, verifica o saldo e atualiza o extrato.
+        """
+        try:
+            cpf = self.entry_cpf_saque.get().strip()
+            num_conta = self.entry_numero_conta_saque.get().strip()
+            valor_saque = float(self.entry_valor_saque.get().strip())
+            
+            if cpf not in self.central_contas:
+                raise ValueError("CPF não encontrado.")
+            
+            conta = None
+            for c in self.central_contas[cpf]["contas"]:
+                if c["numero_conta"] == int(num_conta):
+                    conta = c
+                    break
+            
+            if not conta:
+                raise ValueError("Número da conta não encontrado.")
+            
+            if valor_saque <= 0:
+                raise ValueError("Valor de saque inválido.")
+            if valor_saque > conta["saldo"]:
+                raise ValueError("Saldo insuficiente para saque.")
+            
+            conta["saldo"] -= valor_saque
+            conta["extrato"].append({
+                "data_hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "valor": -valor_saque
+            })
+            
+            messagebox.showinfo("Sucesso", f"Saque de R$ {valor_saque:.2f} realizado com sucesso!")
+            salvar_dados(self.central_contas)
+            self.central_contas = carregar_dados()
+            self.limpar_campos_saque()
+        except ValueError as ve:
+            messagebox.showerror("Erro", str(ve))
+        except Exception as e:
+            messagebox.showerror("Erro", str(e))
     
-    if cpf not in central_contas:
-        messagebox.showerror("Erro", "Usuário não encontrado!")
-        return
+    # --- Métodos para limpar campos ---
     
-    # Lógica para criar uma nova conta
-    central_contas[cpf]['contas'].append(tipo_conta)
-    messagebox.showinfo("Sucesso", f"Conta {tipo_conta} criada para o CPF {cpf}.")
+    def limpar_campos_cadastro(self):
+        self.entry_cpf.delete(0, tk.END)
+        self.entry_nome.delete(0, tk.END)
+        self.entry_data_nascimento.delete(0, tk.END)
+        self.entry_cep.delete(0, tk.END)
+        self.entry_bairro.delete(0, tk.END)
+        self.entry_cidade.delete(0, tk.END)
+        self.entry_estado.delete(0, tk.END)
+        self.entry_logradouro.delete(0, tk.END)
+        self.entry_numero_casa.delete(0, tk.END)
     
-    # Limpar campos após a criação da conta
-    entry_cpf_conta.delete(0, tk.END)
-    tipo_conta_var.set("Selecione")
-
-# Função para registrar transação
-def registrar_transacao():
-    """
-    Registra uma transação de depósito ou saque para um usuário, com base nas informações fornecidas.
-    """
-    cpf = entry_cpf_transacao.get()
-    valor = entry_valor_transacao.get()
-    tipo_transacao = tipo_transacao_var.get()
-
-    if not cpf or not valor or tipo_transacao == "Selecione":
-        messagebox.showerror("Erro", "Por favor, preencha todos os campos obrigatórios!")
-        return
+    def limpar_campos_deposito(self):
+        self.entry_cpf_deposito.delete(0, tk.END)
+        self.entry_numero_conta_deposito.delete(0, tk.END)
+        self.entry_valor_deposito.delete(0, tk.END)
     
-    if cpf not in central_contas:
-        messagebox.showerror("Erro", "Usuário não encontrado!")
-        return
+    def limpar_campos_saque(self):
+        self.entry_cpf_saque.delete(0, tk.END)
+        self.entry_numero_conta_saque.delete(0, tk.END)
+        self.entry_valor_saque.delete(0, tk.END)
     
-    try:
-        valor = float(valor)
-    except ValueError:
-        messagebox.showerror("Erro", "Valor inválido. Insira um número válido.")
-        return
+    # --- Métodos para construir as abas da interface ---
     
-    if tipo_transacao == "Saque" and valor <= 0:
-        messagebox.showerror("Erro", "Valor de saque deve ser maior que zero.")
-        return
+    def criar_aba_cadastro(self):
+        """Cria a aba de cadastro de usuário."""
+        aba = ttk.Frame(self.notebook)
+        self.notebook.add(aba, text="Cadastro de Usuário")
+        
+        # CPF
+        lbl_cpf = tk.Label(aba, text="CPF:")
+        lbl_cpf.grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.entry_cpf = tk.Entry(aba)
+        self.entry_cpf.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Nome
+        lbl_nome = tk.Label(aba, text="Nome:")
+        lbl_nome.grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.entry_nome = tk.Entry(aba)
+        self.entry_nome.grid(row=1, column=1, padx=5, pady=5)
+        
+        # Data de Nascimento
+        lbl_data = tk.Label(aba, text="Data de Nascimento (AAAA-MM-DD):")
+        lbl_data.grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        self.entry_data_nascimento = tk.Entry(aba)
+        self.entry_data_nascimento.grid(row=2, column=1, padx=5, pady=5)
+        
+        # CEP
+        lbl_cep = tk.Label(aba, text="CEP:")
+        lbl_cep.grid(row=3, column=0, padx=5, pady=5, sticky="e")
+        self.entry_cep = tk.Entry(aba)
+        self.entry_cep.grid(row=3, column=1, padx=5, pady=5)
+        
+        # Bairro
+        lbl_bairro = tk.Label(aba, text="Bairro:")
+        lbl_bairro.grid(row=4, column=0, padx=5, pady=5, sticky="e")
+        self.entry_bairro = tk.Entry(aba)
+        self.entry_bairro.grid(row=4, column=1, padx=5, pady=5)
+        
+        # Cidade
+        lbl_cidade = tk.Label(aba, text="Cidade:")
+        lbl_cidade.grid(row=5, column=0, padx=5, pady=5, sticky="e")
+        self.entry_cidade = tk.Entry(aba)
+        self.entry_cidade.grid(row=5, column=1, padx=5, pady=5)
+        
+        # Estado
+        lbl_estado = tk.Label(aba, text="Estado:")
+        lbl_estado.grid(row=6, column=0, padx=5, pady=5, sticky="e")
+        self.entry_estado = tk.Entry(aba)
+        self.entry_estado.grid(row=6, column=1, padx=5, pady=5)
+        
+        # Logradouro
+        lbl_logradouro = tk.Label(aba, text="Logradouro:")
+        lbl_logradouro.grid(row=7, column=0, padx=5, pady=5, sticky="e")
+        self.entry_logradouro = tk.Entry(aba)
+        self.entry_logradouro.grid(row=7, column=1, padx=5, pady=5)
+        
+        # Número da Casa
+        lbl_numero = tk.Label(aba, text="Número da Casa:")
+        lbl_numero.grid(row=8, column=0, padx=5, pady=5, sticky="e")
+        self.entry_numero_casa = tk.Entry(aba)
+        self.entry_numero_casa.grid(row=8, column=1, padx=5, pady=5)
+        
+        # Botão de cadastro
+        btn_cadastrar = tk.Button(aba, text="Adicionar Usuário", command=self.cadastrar_usuario)
+        btn_cadastrar.grid(row=9, column=0, columnspan=2, pady=10)
     
-    # Lógica para registrar a transação
-    messagebox.showinfo("Sucesso", f"Transação {tipo_transacao} de R$ {valor} registrada.")
+    def criar_aba_deposito(self):
+        """Cria a aba de depósito."""
+        aba = ttk.Frame(self.notebook)
+        self.notebook.add(aba, text="Depósito")
+        
+        # CPF para depósito
+        lbl_cpf_dep = tk.Label(aba, text="CPF:")
+        lbl_cpf_dep.grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.entry_cpf_deposito = tk.Entry(aba)
+        self.entry_cpf_deposito.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Número da Conta para depósito
+        lbl_num_conta_dep = tk.Label(aba, text="Número da Conta:")
+        lbl_num_conta_dep.grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.entry_numero_conta_deposito = tk.Entry(aba)
+        self.entry_numero_conta_deposito.grid(row=1, column=1, padx=5, pady=5)
+        
+        # Valor do Depósito
+        lbl_valor_dep = tk.Label(aba, text="Valor do Depósito:")
+        lbl_valor_dep.grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        self.entry_valor_deposito = tk.Entry(aba)
+        self.entry_valor_deposito.grid(row=2, column=1, padx=5, pady=5)
+        
+        # Botão de depósito
+        btn_depositar = tk.Button(aba, text="Depositar", command=self.efetuar_deposito)
+        btn_depositar.grid(row=3, column=0, columnspan=2, pady=10)
     
-    # Limpar campos após o registro da transação
-    limpar_campos_transacao()
+    def criar_aba_saque(self):
+        """Cria a aba de saque."""
+        aba = ttk.Frame(self.notebook)
+        self.notebook.add(aba, text="Saque")
+        
+        # CPF para saque
+        lbl_cpf_saq = tk.Label(aba, text="CPF:")
+        lbl_cpf_saq.grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.entry_cpf_saque = tk.Entry(aba)
+        self.entry_cpf_saque.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Número da Conta para saque
+        lbl_num_conta_saq = tk.Label(aba, text="Número da Conta:")
+        lbl_num_conta_saq.grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.entry_numero_conta_saque = tk.Entry(aba)
+        self.entry_numero_conta_saque.grid(row=1, column=1, padx=5, pady=5)
+        
+        # Valor do Saque
+        lbl_valor_saq = tk.Label(aba, text="Valor do Saque:")
+        lbl_valor_saq.grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        self.entry_valor_saque = tk.Entry(aba)
+        self.entry_valor_saque.grid(row=2, column=1, padx=5, pady=5)
+        
+        # Botão de saque
+        btn_sacar = tk.Button(aba, text="Sacar", command=self.efetuar_saque)
+        btn_sacar.grid(row=3, column=0, columnspan=2, pady=10)
 
-# Função para limpar os campos de transação após o registro
-def limpar_campos_transacao():
-    """
-    Limpa os campos de entrada de transação após o registro de uma operação.
-    """
-    entry_cpf_transacao.delete(0, tk.END)
-    entry_valor_transacao.delete(0, tk.END)
-    tipo_transacao_var.set("Selecione")
 
-# Função para limpar todos os campos (exemplo para futuras melhorias)
-def limpar_todos_campos():
-    """
-    Limpa todos os campos de entrada de uma vez.
-    """
-    limpar_campos_usuario()
-    limpar_campos_transacao()
-    entry_cpf_conta.delete(0, tk.END)
-    tipo_conta_var.set("Selecione")
-
-# Configuração inicial da interface
-root = tk.Tk()
-root.title("Sistema Bancário")
-
-# Central de contas (onde todos os dados dos usuários serão armazenados)
-central_contas = {}
-
-# Abas (Notebook)
-tab_control = ttk.Notebook(root)
-
-# Aba de criação de usuário
-aba_usuarios = tk.Frame(tab_control)
-tab_control.add(aba_usuarios, text="Criar Usuário")
-
-# Entradas para criação de usuário
-tk.Label(aba_usuarios, text="Nome:").pack(pady=5)
-entry_nome = tk.Entry(aba_usuarios)
-entry_nome.pack(pady=5)
-
-tk.Label(aba_usuarios, text="Data nascimento (YYYY-MM-DD):").pack(pady=5)
-entry_data_nascimento = tk.Entry(aba_usuarios)
-entry_data_nascimento.pack(pady=5)
-
-tk.Label(aba_usuarios, text="CPF:").pack(pady=5)
-entry_cpf = tk.Entry(aba_usuarios)
-entry_cpf.pack(pady=5)
-
-tk.Label(aba_usuarios, text="CEP:").pack(pady=5)
-entry_cep = tk.Entry(aba_usuarios)
-entry_cep.pack(pady=5)
-
-tk.Label(aba_usuarios, text="Bairro:").pack(pady=5)
-entry_bairro = tk.Entry(aba_usuarios)
-entry_bairro.pack(pady=5)
-
-tk.Label(aba_usuarios, text="Cidade:").pack(pady=5)
-entry_cidade = tk.Entry(aba_usuarios)
-entry_cidade.pack(pady=5)
-
-tk.Label(aba_usuarios, text="Estado:").pack(pady=5)
-entry_estado = tk.Entry(aba_usuarios)
-entry_estado.pack(pady=5)
-
-tk.Label(aba_usuarios, text="Logradouro:").pack(pady=5)
-entry_logradouro = tk.Entry(aba_usuarios)
-entry_logradouro.pack(pady=5)
-
-tk.Label(aba_usuarios, text="Número da casa:").pack(pady=5)
-entry_numero_casa = tk.Entry(aba_usuarios)
-entry_numero_casa.pack(pady=5)
-
-# Botão para criar usuário
-btn_criar_usuario = tk.Button(aba_usuarios, text="Criar Usuário", command=adicionar_usuario, width=20)
-btn_criar_usuario.pack(pady=20)
-
-# Aba de criação de contas
-aba_contas = tk.Frame(tab_control)
-tab_control.add(aba_contas, text="Criar Conta")
-
-# Entradas para criação de conta
-tk.Label(aba_contas, text="CPF:").pack(pady=5)
-entry_cpf_conta = tk.Entry(aba_contas)
-entry_cpf_conta.pack(pady=5)
-
-tk.Label(aba_contas, text="Tipo de Conta:").pack(pady=5)
-tipo_conta_var = tk.StringVar(value="Selecione")
-tipo_conta_menu = tk.OptionMenu(aba_contas, tipo_conta_var, "Selecione", "Conta Corrente", "Conta PJ")
-tipo_conta_menu.pack(pady=5)
-
-# Botão para criar conta
-btn_criar_conta = tk.Button(aba_contas, text="Criar Conta", command=criar_conta, width=20)
-btn_criar_conta.pack(pady=20)
-
-# Aba de transações
-aba_transacoes = tk.Frame(tab_control)
-tab_control.add(aba_transacoes, text="Transações")
-
-# Entradas para transação
-tk.Label(aba_transacoes, text="CPF:").pack(pady=5)
-entry_cpf_transacao = tk.Entry(aba_transacoes)
-entry_cpf_transacao.pack(pady=5)
-
-tk.Label(aba_transacoes, text="Valor:").pack(pady=5)
-entry_valor_transacao = tk.Entry(aba_transacoes)
-entry_valor_transacao.pack(pady=5)
-
-tk.Label(aba_transacoes, text="Tipo de Transação:").pack(pady=5)
-tipo_transacao_var = tk.StringVar(value="Selecione")
-tipo_transacao_menu = tk.OptionMenu(aba_transacoes, tipo_transacao_var, "Selecione", "Depósito", "Saque")
-tipo_transacao_menu.pack(pady=5)
-
-# Botão para registrar transação
-btn_registrar_transacao = tk.Button(aba_transacoes, text="Registrar Transação", command=registrar_transacao, width=20)
-btn_registrar_transacao.pack(pady=20)
-
-# Exibindo as abas
-tab_control.pack(expand=1, fill="both")
-
-# Iniciando a aplicação
-root.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = SistemaBancario(root)
+    root.mainloop()
